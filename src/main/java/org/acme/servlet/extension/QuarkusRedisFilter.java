@@ -1,9 +1,6 @@
 package org.acme.servlet.extension;
 
-import com.vaadin.flow.server.VaadinSession;
-
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Enumeration;
 
 import javax.servlet.Filter;
@@ -13,6 +10,8 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
+
+import com.vaadin.flow.server.VaadinSession;
 
 /**
  * This Servlet Filter kicks in at the end of a request to "rewrite" the VaadinSession instance into the HttpSession in order to persist the updated
@@ -37,22 +36,18 @@ public class QuarkusRedisFilter implements Filter {
                 if (session == null) {
                     return;
                 }
-/*
-                final DummyBean dummyBean = (DummyBean) session.getAttribute("dummyBean");
-                if (dummyBean != null) {
-                    System.out.println("_____________________________________________________________________________");
-                    System.out.println("DummyBean is restored from session-attribute in session: " + session.getId());
-                    dummyBean.sayHello();
-                }
 
-                if (dummyBean == null) {
-                    System.out.println("_____________________________________________________________________________");
-                    System.out.println("DummyBean was null, created new bean in attribute of session: " + session.getId());
-                    final DummyBean bean = new DummyBean("test", "lastname", Arrays.asList("Hey", "Ciao", "Buongiorno"));
-                    bean.setHelloEventHandler(() -> System.out.println("HEY!! You triggered the hello function"));
-                    session.setAttribute("dummyBean", bean);
-                }
-*/
+                /*
+                 * final DummyBean dummyBean = (DummyBean) session.getAttribute("dummyBean"); if (dummyBean != null) {
+                 * System.out.println("_____________________________________________________________________________");
+                 * System.out.println("DummyBean is restored from session-attribute in session: " + session.getId()); dummyBean.sayHello(); }
+                 * 
+                 * if (dummyBean == null) { System.out.println("_____________________________________________________________________________");
+                 * System.out.println("DummyBean was null, created new bean in attribute of session: " + session.getId()); final DummyBean bean = new
+                 * DummyBean("test", "lastname", Arrays.asList("Hey", "Ciao", "Buongiorno")); bean.setHelloEventHandler(() ->
+                 * System.out.println("HEY!! You triggered the hello function")); session.setAttribute("dummyBean", bean); }
+                 */
+
                 for (final Enumeration<String> attributeNames = session.getAttributeNames(); attributeNames.hasMoreElements();) {
                     final String name = attributeNames.nextElement();
                     final Object value = session.getAttribute(name);
@@ -60,7 +55,6 @@ public class QuarkusRedisFilter implements Filter {
                         session.setAttribute(name, value);
                     }
                 }
-
 
             }
         }

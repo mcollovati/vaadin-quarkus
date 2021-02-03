@@ -15,13 +15,8 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.urosporo.quarkus.vaadin.cdi.QuarkusVaadinServletService;
 import com.vaadin.flow.component.ComponentEventBus;
@@ -29,8 +24,11 @@ import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinService;
 import com.vaadin.flow.server.VaadinSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.quarkus.arc.Arc;
+import io.quarkus.redis.client.RedisClient;
 import io.quarkus.redis.client.reactive.ReactiveRedisClient;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.session.Session;
@@ -39,7 +37,7 @@ import io.undertow.server.session.SessionCookieConfig;
 import io.undertow.server.session.SessionListener;
 import io.undertow.server.session.SessionManager;
 import io.undertow.server.session.SessionManagerStatistics;
-import io.vertx.mutiny.redis.client.Response;
+import io.vertx.redis.client.Response;
 
 /**
  * A SessionManager that uses Redis to store session data. Sessions are stored as a Redis Hash and sessions attributes are stored directly in fields
@@ -61,13 +59,13 @@ public class RedisSessionManager implements SessionManager {
     private final SessionCookieConfig sessionConfig;
     private final SessionManager inMemorySessionManager;
 
-    ReactiveRedisClient redisClient;
+    private final RedisClient redisClient;
 
     public RedisSessionManager(final SessionCookieConfig sessionCookieConfig, final SessionManager inMemorySessionManager) {
 
         this.sessionConfig = sessionCookieConfig;
         this.inMemorySessionManager = inMemorySessionManager;
-        this.redisClient = Arc.container().instance(ReactiveRedisClient.class).get();
+        this.redisClient = Arc.container().instance(RedisClient.class).get();
     }
 
     @Override
@@ -95,8 +93,7 @@ public class RedisSessionManager implements SessionManager {
         final SessionImpl session = new SessionImpl(this, this.inMemorySessionManager.createSession(serverExchange, sessionConfig), sessionConfig);
 
         final long created = System.currentTimeMillis();
-        this.redisClient.set(Arrays.asList(session.getId() + CREATED_FIELD, String.valueOf(created))).map(response -> null);
-
+        this.redisClient.set(Arrays.asList(session.getId() + CREATED_FIELD, String.valueOf(created)));
         session.bumpTimeout();
         return session;
     }
@@ -111,12 +108,9 @@ public class RedisSessionManager implements SessionManager {
 
         final String sessionId = sessionConfig.findSessionId(serverExchange);
         if (sessionId != null) {
-           return this.redisClient.exists(Collections.singletonList(sessionId)).map(response -> {
-                if (TRUE.equals(response.toBoolean())) {
-                    return new SessionImpl(this, this.inMemorySessionManager.createSession(serverExchange, sessionConfig), sessionConfig);
-                }
-                return null;
-            }).subscribe().with(item ->item);
+            if (TRUE.equals(this.redisClient.exists(Collections.singletonList(sessionId)).toBoolean())) {
+                return new SessionImpl(this, this.inMemorySessionManager.createSession(serverExchange, sessionConfig), sessionConfig);
+            }
         }
         return null;
     }
@@ -166,15 +160,7 @@ public class RedisSessionManager implements SessionManager {
     @Override
     public Set<String> getAllSessions() {
 
-        final Set<String> sessions = new HashSet<>();
-        this.redisClient.keys("*").map(response -> {
-            final List<String> result = new ArrayList<>();
-            for (final Response key : response) {
-                result.add(key.toString());
-            }
-            return result;
-        }).subscribe().with(sessions::addAll);
-        return sessions;
+        return this.redisClient.keys("*").getKeys();
     }
 
     @Override
@@ -185,7 +171,7 @@ public class RedisSessionManager implements SessionManager {
 
     /**
      * Opens a connection to redis to check if the connection is established.
-     * 
+     *
      * @return <CODE>true/false</CODE> indicating if the connectionTest was successful
      */
     public boolean isConnectedToRedis() {
@@ -228,9 +214,8 @@ public class RedisSessionManager implements SessionManager {
         @Override
         public long getLastAccessedTime() {
 
-            return 0;
-            // return System.currentTimeMillis()
-            // - ((getMaxInactiveInterval() * 100) - this.sessionManager.redisClient.pttl(this.inMemorySession.getId()).toInteger());
+            return System.currentTimeMillis()
+                    - ((getMaxInactiveInterval() * 100) - this.sessionManager.redisClient.pttl(this.inMemorySession.getId()).toInteger());
         }
 
         @Override
@@ -253,16 +238,17 @@ public class RedisSessionManager implements SessionManager {
             if (inMemoryAttribute != null) {
                 return inMemoryAttribute;
             } else {
+                System.out.println("getAttribute " + name);
+                Response attribute = null;
+                if (TRUE.equals(this.sessionManager.redisClient.hexists(this.inMemorySession.getId(), name).toBoolean())) {
 
-                this.sessionManager.redisClient.hget(this.inMemorySession.getId(), name).map(Response::toString).subscribe();
+                    attribute = this.sessionManager.redisClient.hget(this.inMemorySession.getId(), name);
+                }
 
-                // final Response attribute = this.sessionManager.redisClient.hget(this.inMemorySession.getId(), name);
-                final Object attribute = null;
                 if (attribute == null) {
                     return null;
                 }
                 bumpTimeout();
-                System.out.println("attribute name: " + name);
 
                 final Object deserializedAttribute = deserialize(attribute.toString());
                 if (deserializedAttribute instanceof VaadinSession) {
@@ -294,18 +280,7 @@ public class RedisSessionManager implements SessionManager {
         public Set<String> getAttributeNames() {
 
             bumpTimeout();
-            final Set<String> attributeNames = new HashSet<>();
-
-            this.sessionManager.redisClient.keys(this.inMemorySession.getId()).map(response -> {
-
-                final List<String> result = new ArrayList<>();
-                for (final Response key : response) {
-                    result.add(key.toString());
-                }
-                return result;
-            }).subscribe().with(attributeNames::addAll);
-
-            return attributeNames;
+            return this.sessionManager.redisClient.hkeys(this.inMemorySession.getId()).getKeys();
 
         }
 
@@ -321,11 +296,14 @@ public class RedisSessionManager implements SessionManager {
                 if (value instanceof VaadinSession) {
                     prepareVaadinSessionForSerialization((VaadinSession) value);
                 }
+
                 objectOutputStream.writeObject(value);
                 objectOutputStream.flush();
+
                 if (value instanceof VaadinSession) {
                     configureVaadinSessionForClientRequest((VaadinSession) value);
                 }
+
                 existingAttribute = this.sessionManager.redisClient.hget(this.inMemorySession.getId(), name);
                 this.sessionManager.redisClient
                         .hset(Arrays.asList(this.inMemorySession.getId(), name, getEncoder().encodeToString(byteOutputStream.toByteArray())));
@@ -386,7 +364,6 @@ public class RedisSessionManager implements SessionManager {
             this.sessionManager.redisClient.expire(this.inMemorySession.getId() + CREATED_FIELD, Integer.toString(getMaxInactiveInterval()));
 
         }
-
         private void prepareVaadinSessionForSerialization(final VaadinSession vaadinSession) {
 
             configureVaadinService(vaadinSession, null);
@@ -424,21 +401,21 @@ public class RedisSessionManager implements SessionManager {
 
                 for (final Object key : keySet) {
                     ((ArrayList<?>) ((Map<?, ?>) componentEventDataField.get(componentEventBus)).get(key))
-                            .forEach(componentEventBusListenerWrapper -> {
-                                try {
-                                    final Field listenerField = componentEventBusListenerWrapper.getClass().getDeclaredField("listener");
-                                    setAccessible(listenerField, true);
-                                    final ComponentEventListener<?> listener = (ComponentEventListener<?>) listenerField
-                                            .get(componentEventBusListenerWrapper);
-                                    setAccessible(listenerField, false);
+                      .forEach(componentEventBusListenerWrapper -> {
+                          try {
+                              final Field listenerField = componentEventBusListenerWrapper.getClass().getDeclaredField("listener");
+                              setAccessible(listenerField, true);
+                              final ComponentEventListener<?> listener = (ComponentEventListener<?>) listenerField
+                                .get(componentEventBusListenerWrapper);
+                              setAccessible(listenerField, false);
 
-                                    if (listener.getClass().getName().contains("QuarkusVaadinServletService")) {
-                                        setVaadinServiceInUIListener(listener, vaadinService);
-                                    }
-                                } catch (final ReflectiveOperationException e) {
-                                    LOG.error(REFLECTION_ERROR_MESSAGE, e);
-                                }
-                            });
+                              if (listener.getClass().getName().contains("QuarkusVaadinServletService")) {
+                                  setVaadinServiceInUIListener(listener, vaadinService);
+                              }
+                          } catch (final ReflectiveOperationException e) {
+                              LOG.error(REFLECTION_ERROR_MESSAGE, e);
+                          }
+                      });
                 }
                 setAccessible(eventBusField, false);
                 setAccessible(componentEventDataField, false);
@@ -453,7 +430,7 @@ public class RedisSessionManager implements SessionManager {
 
             setAccessible(delegateField, true);
             final QuarkusVaadinServletService.QuarkusVaadinServiceDelegate delegate = (QuarkusVaadinServletService.QuarkusVaadinServiceDelegate) delegateField
-                    .get(listener);
+              .get(listener);
             setAccessible(delegateField, false);
 
             final Field vaadinServiceField = delegate.getClass().getDeclaredField("vaadinService");
@@ -474,7 +451,6 @@ public class RedisSessionManager implements SessionManager {
 
             field.setAccessible(accessible);
         }
-
     }
 
 }
