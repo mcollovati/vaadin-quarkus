@@ -35,7 +35,6 @@ import java.util.Map;
 @PWA(name = "Project Base for Vaadin", shortName = "Project Base", enableInstallPrompt = false)
 @CssImport(value = "./styles/vaadin-text-field-styles.css", themeFor = "vaadin-text-field")
 @CssImport("./styles/shared-styles.css")
-@Push
 public class MainLayout extends AppLayout implements RouterLayout, AfterNavigationObserver {
 
     private final H1 currentViewName = new H1();
