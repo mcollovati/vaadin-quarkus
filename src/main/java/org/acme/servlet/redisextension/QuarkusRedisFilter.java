@@ -1,4 +1,4 @@
-package org.acme.servlet.extension;
+package org.acme.servlet.redisextension;
 
 import java.io.IOException;
 import java.util.Enumeration;

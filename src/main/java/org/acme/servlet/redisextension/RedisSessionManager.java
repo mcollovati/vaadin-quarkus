@@ -1,4 +1,4 @@
-package org.acme.servlet.extension;
+package org.acme.servlet.redisextension;
 
 import static java.lang.Boolean.TRUE;
 import static java.util.Base64.getDecoder;

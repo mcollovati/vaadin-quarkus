@@ -1,4 +1,4 @@
-package org.acme.servlet.extension;
+package org.acme.servlet.redisextension;
 
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.Integer.parseInt;
