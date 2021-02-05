@@ -36,7 +36,7 @@ public class PolymerExampleRoute extends VerticalLayout {
         add(new HelloWorld());
 
         // demo the @Id annotation working well with PolymerTemplate
-        add(new H2(getTranslation("test.label")));
+        add(new H2("Polymer Form"));
         this.user = new UserForm.User();
         this.user.setFirstName("Hello");
         this.user.setLastName("World");

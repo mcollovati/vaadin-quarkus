@@ -15,8 +15,12 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.urosporo.quarkus.vaadin.cdi.QuarkusVaadinServletService;
 import com.vaadin.flow.component.ComponentEventBus;
@@ -24,12 +28,9 @@ import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinService;
 import com.vaadin.flow.server.VaadinSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.quarkus.arc.Arc;
 import io.quarkus.redis.client.RedisClient;
-import io.quarkus.redis.client.reactive.ReactiveRedisClient;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.session.Session;
 import io.undertow.server.session.SessionConfig;
@@ -235,15 +236,16 @@ public class RedisSessionManager implements SessionManager {
         public Object getAttribute(final String name) {
 
             final Object inMemoryAttribute = this.inMemorySession.getAttribute(name);
+
+            if (name.equals("io.undertow.websocket.current-connections")) {
+                return this.inMemorySession.getAttribute(name);
+            }
+
             if (inMemoryAttribute != null) {
                 return inMemoryAttribute;
             } else {
-                System.out.println("getAttribute " + name);
-                Response attribute = null;
-                if (TRUE.equals(this.sessionManager.redisClient.hexists(this.inMemorySession.getId(), name).toBoolean())) {
 
-                    attribute = this.sessionManager.redisClient.hget(this.inMemorySession.getId(), name);
-                }
+                final Response attribute = this.sessionManager.redisClient.hget(this.inMemorySession.getId(), name);
 
                 if (attribute == null) {
                     return null;
@@ -280,16 +282,25 @@ public class RedisSessionManager implements SessionManager {
         public Set<String> getAttributeNames() {
 
             bumpTimeout();
-            return this.sessionManager.redisClient.hkeys(this.inMemorySession.getId()).getKeys();
+            final Set<String> allAttributes = new HashSet<>();
+            allAttributes.addAll(this.inMemorySession.getAttributeNames());
+            allAttributes.addAll(this.sessionManager.redisClient.hkeys(this.inMemorySession.getId()).getKeys());
+
+            return allAttributes;
 
         }
 
         @Override
         public Object setAttribute(final String name, final Object value) {
 
-            this.inMemorySession.setAttribute(name, value);
+            Object existingAttribute;
 
-            final Object existingAttribute;
+            existingAttribute = this.inMemorySession.setAttribute(name, value);
+
+            if (name.equals("io.undertow.websocket.current-connections")) {
+                return existingAttribute;
+            }
+
             try (final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream();
                     final ObjectOutputStream objectOutputStream = new ObjectOutputStream(new BufferedOutputStream(byteOutputStream))) {
 
@@ -364,6 +375,7 @@ public class RedisSessionManager implements SessionManager {
             this.sessionManager.redisClient.expire(this.inMemorySession.getId() + CREATED_FIELD, Integer.toString(getMaxInactiveInterval()));
 
         }
+
         private void prepareVaadinSessionForSerialization(final VaadinSession vaadinSession) {
 
             configureVaadinService(vaadinSession, null);
@@ -401,21 +413,21 @@ public class RedisSessionManager implements SessionManager {
 
                 for (final Object key : keySet) {
                     ((ArrayList<?>) ((Map<?, ?>) componentEventDataField.get(componentEventBus)).get(key))
-                      .forEach(componentEventBusListenerWrapper -> {
-                          try {
-                              final Field listenerField = componentEventBusListenerWrapper.getClass().getDeclaredField("listener");
-                              setAccessible(listenerField, true);
-                              final ComponentEventListener<?> listener = (ComponentEventListener<?>) listenerField
-                                .get(componentEventBusListenerWrapper);
-                              setAccessible(listenerField, false);
+                            .forEach(componentEventBusListenerWrapper -> {
+                                try {
+                                    final Field listenerField = componentEventBusListenerWrapper.getClass().getDeclaredField("listener");
+                                    setAccessible(listenerField, true);
+                                    final ComponentEventListener<?> listener = (ComponentEventListener<?>) listenerField
+                                            .get(componentEventBusListenerWrapper);
+                                    setAccessible(listenerField, false);
 
-                              if (listener.getClass().getName().contains("QuarkusVaadinServletService")) {
-                                  setVaadinServiceInUIListener(listener, vaadinService);
-                              }
-                          } catch (final ReflectiveOperationException e) {
-                              LOG.error(REFLECTION_ERROR_MESSAGE, e);
-                          }
-                      });
+                                    if (listener.getClass().getName().contains("QuarkusVaadinServletService")) {
+                                        setVaadinServiceInUIListener(listener, vaadinService);
+                                    }
+                                } catch (final ReflectiveOperationException e) {
+                                    LOG.error(REFLECTION_ERROR_MESSAGE, e);
+                                }
+                            });
                 }
                 setAccessible(eventBusField, false);
                 setAccessible(componentEventDataField, false);
@@ -430,7 +442,7 @@ public class RedisSessionManager implements SessionManager {
 
             setAccessible(delegateField, true);
             final QuarkusVaadinServletService.QuarkusVaadinServiceDelegate delegate = (QuarkusVaadinServletService.QuarkusVaadinServiceDelegate) delegateField
-              .get(listener);
+                    .get(listener);
             setAccessible(delegateField, false);
 
             final Field vaadinServiceField = delegate.getClass().getDeclaredField("vaadinService");
