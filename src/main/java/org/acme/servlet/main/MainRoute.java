@@ -1,5 +1,6 @@
 package org.acme.servlet.main;
 
+import com.vaadin.flow.component.Key;
 import com.vaadin.flow.function.SerializableConsumer;
 import org.acme.servlet.MainLayout;
 
@@ -32,7 +33,7 @@ public class MainRoute extends VerticalLayout {
 
         // Button click listeners can be defined as lambda expressions
         final Button button = new Button("Say hello");
-        button.addClickListener(((SerializableEventListener & ComponentEventListener<ClickEvent<Button>>) e -> Notification.show("test")));
+        button.addClickListener(((SerializableEventListener & ComponentEventListener<ClickEvent<Button>>) e -> Notification.show("Hello, this is a test")));
 
         // Theme variants give you predefined extra styles for components.
         // Example: Primary button is more prominent look.
@@ -40,7 +41,7 @@ public class MainRoute extends VerticalLayout {
 
         // You can specify keyboard shortcuts for buttons.
         // Example: Pressing enter in this view clicks the Button.
-        // button.addClickShortcut(Key.ENTER);
+        button.addClickShortcut(Key.ENTER);
 
         add(button);
     }
