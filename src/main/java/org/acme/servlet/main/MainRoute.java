@@ -1,35 +1,38 @@
 package org.acme.servlet.main;
 
-import com.vaadin.flow.component.Key;
+import com.vaadin.flow.function.SerializableConsumer;
+import org.acme.servlet.MainLayout;
+
+import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.function.SerializableEventListener;
 import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.PreserveOnRefresh;
 import com.vaadin.flow.router.Route;
-import org.acme.servlet.MainLayout;
 
 /**
  * Port of the "Skeleton Starter" Vaadin app on top of Quarkus+Undertow.
+ * 
  * @author Martin Vysny <mavi@vaadin.com>
  */
 @PageTitle("Skeleton Starter Demo | Vaadin Quarkus Demo")
-@Route(value = "", layout = MainLayout.class)
+@Route(value = "",
+        layout = MainLayout.class)
 public class MainRoute extends VerticalLayout {
+
+    private static final long serialVersionUID = 2028635200678251124L;
+
     public MainRoute() {
+
         add(new Span("Port of the \"Skeleton Starter\" Vaadin app on top of Quarkus+Undertow."));
 
-        // Use TextField for standard text input
-        TextField textField = new TextField("Your name");
-        textField.addThemeName("bordered");
-
         // Button click listeners can be defined as lambda expressions
-        GreetService greetService = new GreetService();
-        Button button = new Button("Say hello",
-                e -> Notification.show(greetService.greet(textField.getValue())));
+        final Button button = new Button("Say hello");
+        button.addClickListener(((SerializableEventListener & ComponentEventListener<ClickEvent<Button>>) e -> Notification.show("test")));
 
         // Theme variants give you predefined extra styles for components.
         // Example: Primary button is more prominent look.
@@ -37,8 +40,8 @@ public class MainRoute extends VerticalLayout {
 
         // You can specify keyboard shortcuts for buttons.
         // Example: Pressing enter in this view clicks the Button.
-        button.addClickShortcut(Key.ENTER);
+        // button.addClickShortcut(Key.ENTER);
 
-        add(textField, button);
+        add(button);
     }
 }
