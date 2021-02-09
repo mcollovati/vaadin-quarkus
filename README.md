@@ -1,5 +1,12 @@
 # Vaadin+Quarkus example project
 
+Additional information for this fork:
+This project implements a undertow-servlet extension to enable session replication in redis. Make sure your local 
+redis instance is running on redis://localhost:6379 (see https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/#creating-redis-deployment-and-service).
+
+Access localhost:8080, shutdown the application and access the webpage again. Session is restored from redis.
+
+
 > Work on this project has been kindly sponsored by [Inacta AG](https://inacta.ch).
 
 This project runs [Vaadin 14](https://vaadin.com/) on top of [Quarkus](https://quarkus.io/).
