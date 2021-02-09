@@ -51,7 +51,6 @@ public class QuarkusRedisFilter implements Filter {
                 for (final Enumeration<String> attributeNames = session.getAttributeNames(); attributeNames.hasMoreElements();) {
                     final String name = attributeNames.nextElement();
                     final Object value = session.getAttribute(name);
-                    System.out.println("ATTRIBUTE NAME: " + name);
                     if (value instanceof VaadinSession) {
                         session.setAttribute(name, value);
                     }
