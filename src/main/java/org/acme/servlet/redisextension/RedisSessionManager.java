@@ -267,9 +267,10 @@ public class RedisSessionManager implements SessionManager {
             if (data == null) {
                 return null;
             }
+            ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
             final byte[] attributeBytes = getDecoder().decode(data);
             try (final BufferedInputStream bufferedInputStream = new BufferedInputStream(new ByteArrayInputStream(attributeBytes));
-                    final ObjectInputStream objectInputStream = new ObjectInputStream(bufferedInputStream)) {
+                    final ObjectInputStream objectInputStream = new ClassLoaderObjectInputStream(contextClassLoader, bufferedInputStream)) {
 
                 return objectInputStream.readObject();
             } catch (final ClassNotFoundException | IOException e) {
